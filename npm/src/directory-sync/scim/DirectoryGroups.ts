@@ -146,6 +146,8 @@ export class DirectoryGroups {
   public async update(directory: Directory, group: Group, body: any): Promise<DirectorySyncResponse> {
     const updatedGroup = await this.updateDisplayName(directory, group, body);
 
+    await this.syncGroupMembers(directory, group, body.members || []);
+
     return {
       status: 200,
       data: {
@@ -223,6 +225,48 @@ export class DirectoryGroups {
         await sendEvent('group.user_removed', { directory, group, user }, this.callback);
       }
     }
+  }
+
+  public async syncGroupMembers(
+    directory: Directory,
+    group: Group,
+    members: DirectorySyncGroupMember[]
+  ) {
+    const existingMembers: string[] = [];
+    const pageLimit = 500;
+    let pageOffset = 0;
+
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data } = await this.groups.getGroupMembers({
+        groupId: group.id,
+        pageOffset,
+        pageLimit,
+      });
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      existingMembers.push(...data.map((m) => m.user_id));
+      hasMore = data.length >= pageLimit;
+      pageOffset += pageLimit;
+    }
+
+    const incomingMemberIds = new Set(members.map((m) => m.value));
+    const existingMemberIds = new Set(existingMembers);
+
+    const toAdd = members.filter((m) => !existingMemberIds.has(m.value));
+    const toRemove = existingMembers.filter((id) => !incomingMemberIds.has(id));
+
+    await this.addGroupMembers(directory, group, toAdd);
+
+    await this.removeGroupMembers(
+      directory,
+      group,
+      toRemove.map((id) => ({ value: id }))
+    );
   }
 
   private respondWithError(error: ApiError | null) {
