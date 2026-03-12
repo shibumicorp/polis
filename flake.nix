@@ -1,49 +1,39 @@
 {
   description = "Polis";
 
-  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
+  inputs.build-support.url = "github:ShibumiCorp/build_support";
+  inputs.nixpkgs.follows = "build-support/nixpkgs";
+  inputs.flake-parts.follows = "build-support/flake-parts";
 
-  outputs = { self, nixpkgs }:
-    let
+  outputs = inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } ({...}: {
       systems = [
         "x86_64-linux"
         "x86_64-darwin"
         "aarch64-darwin"
       ];
-      eachSystem = nixpkgs.lib.genAttrs systems;
-      pkgsFor = eachSystem (system:
-        import nixpkgs {
-          localSystem.system = system;
-          config.allowUnfree = true;
-          overlays = [self.overlays.default];
-        });
-    in {
-      overlays = {
-        default = final: prev: {
-          polis = final.callPackage ./default.nix {};
-          docker-cacert = prev.cacert;
-        };
-      };
 
-      packages = eachSystem (system: let pkgs = pkgsFor.${system}; in {
-        default = pkgs.polis;
-        bin = pkgs.polis;
-        docker = pkgs.callPackage ./docker.nix {};
-      });
-
-      devShells = eachSystem(system:
-        let pkgs = pkgsFor.${system};
+      perSystem = {pkgs, ...}:
+        let polis = pkgs.callPackage ./default.nix {};
         in {
-          default = pkgs.mkShell {
-            name = "snapshot-service";
-            buildInputs = with pkgs; [
-              nodejs
-            ];
-            nativeBuildInputs = with pkgs; [
-              nodePackages.typescript-language-server
-              vscode-langservers-extracted
-            ];
+          packages = {
+            default = polis;
+            bin = polis;
+            docker = pkgs.callPackage ./docker.nix { inherit polis; };
           };
-        });
-    };
+
+          devShells = {
+            default = pkgs.mkShell {
+              name = "snapshot-service";
+              buildInputs = with pkgs; [
+                nodejs
+              ];
+              nativeBuildInputs = with pkgs; [
+                nodePackages.typescript-language-server
+                vscode-langservers-extracted
+              ];
+            };
+          };
+        };
+    });
 }
