@@ -1,8 +1,8 @@
 import { Storable } from '@boxyhq/saml-jackson';
-import DB from 'npm/src/db/db';
+import DB from '@Boxyhq/saml-jackson/src/db/db';
 import { jacksonOptions } from './env';
 import type { AdapterUser, VerificationToken } from 'next-auth/adapters';
-import defaultDb from 'npm/src/db/defaultDb';
+import defaultDb from '@boxyhq/saml-jackson/src/db/defaultDb';
 import { logger } from './logger';
 
 const g = global as any;

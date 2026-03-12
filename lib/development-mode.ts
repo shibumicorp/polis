@@ -1,5 +1,5 @@
 import jackson from './jackson';
-import { IndexNames } from 'npm/src/controller/utils';
+import { IndexNames } from '@boxyhq/saml-jackson/src/controller/utils';
 import { jacksonOptions } from '@lib/env';
 
 type Module = 'sso' | 'dsync' | 'identityFederation';

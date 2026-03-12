@@ -1,7 +1,7 @@
 import { defaultHandler } from '@lib/api';
 import jackson from '@lib/jackson';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { IndexNames } from 'npm/src/controller/utils';
+import { IndexNames } from '@boxyhq/saml-jackson/src/controller/utils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   await defaultHandler(req, res, {

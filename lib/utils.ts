@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import micromatch from 'micromatch';
 import type { OIDCSSOConnectionWithDiscoveryUrl, OIDCSSOConnectionWithMetadata } from '@boxyhq/saml-jackson';
-import { JacksonError } from 'npm/src/controller/error';
+import { JacksonError } from '@boxyhq/saml-jackson/src/controller/error';
 import type { PaginateApiParams } from 'types';
 import { jacksonOptions } from '@lib/env';
 
