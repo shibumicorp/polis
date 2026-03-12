@@ -28,7 +28,7 @@
       packages = eachSystem (system: let pkgs = pkgsFor.${system}; in {
         default = pkgs.polis;
         bin = pkgs.polis;
-        # docker = pkgs.callPackage ./docker.nix {};
+        docker = pkgs.callPackage ./docker.nix {};
       });
 
       devShells = eachSystem(system:

@@ -3,27 +3,8 @@
   lib,
   makeWrapper,
   nodejs,
-  noto-fonts,
-  noto-fonts-cjk-sans,
-  noto-fonts-color-emoji,
-  corefonts,
-  liberation_ttf,
-  makeFontsConf,
 }:
-let
-    myFonts = [
-        corefonts
-        liberation_ttf
-        noto-fonts
-        noto-fonts-cjk-sans
-        noto-fonts-color-emoji
-    ];
-    myFontsConf = makeFontsConf {
-        fontDirectories = myFonts;
-        impureFontDirectories = [];
-        includes = [];
-    };
-in (buildNpmPackage (final: {
+buildNpmPackage (final: {
     pname = "polis";
     version = "1.52.2";
 
@@ -33,6 +14,7 @@ in (buildNpmPackage (final: {
         ./.
         (lib.fileset.unions [
           ./default.nix
+          ./docker.nix
           ./flake.nix
           ./flake.lock
         ]);
@@ -52,4 +34,4 @@ in (buildNpmPackage (final: {
             --chdir $out/share/polis
         runHook postInstall
     '';
-  }))
+  })
