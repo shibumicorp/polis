@@ -1,0 +1,188 @@
+#!/usr/bin/env groovy
+
+pipeline {
+    agent { label 'generic-nix-worker-single-exec' }
+
+    options {
+        timeout(time: 1, unit: 'HOURS')
+        buildDiscarder(
+            logRotator(
+                artifactDaysToKeepStr: '',
+                artifactNumToKeepStr: '',
+                daysToKeepStr: '',
+                numToKeepStr: '20'
+            )
+        )
+    }
+
+    environment {
+        DOCKER_CRED = "07297589-e383-4f9e-bb0b-1df0165fb0c1"
+        DOCKERFILE = "Dockerfile"
+        GIT_CRED = "709e4237-6af4-4dec-bd6c-f449ceede3a2"
+        GIT_URL = "https://github.com/shibumicorp/polis.git"
+        IMAGE_BASE = "${env.ORG_NAME}/${env.SERVICE_NAME}"
+        ORG_NAME = "222068622593.dkr.ecr.us-east-1.amazonaws.com"
+        SERVICE_NAME = "polis"
+        SLACK_CHANNEL = "#jenkins-build-alerts"
+        SLACK_DOMAIN = "shibumi"
+        SLACK_TOKEN = "ca1717b1-c157-4fe8-866e-8027d04d4cda"
+        TARGET_LOCATION = "./"
+    }
+
+    stages {
+
+        stage('Checkout git repo') {
+            steps {
+                script {
+                    if (params.BRANCH) {
+                        BRANCH_TO_BUILD = BRANCH
+                    } else {
+                        BRANCH_TO_BUILD = "develop"
+                    }
+                }
+
+                checkout([
+                    $class           : 'GitSCM',
+                    branches         : [[name: BRANCH_TO_BUILD]],
+                    extensions       : [], submoduleCfg: [],
+                    userRemoteConfigs:
+                        [[credentialsId: "${env.GIT_CRED}",
+                            url          : "${env.GIT_URL}"
+                            ]]
+                ])
+            }
+        }
+
+        stage('Run Build Steps') {
+            steps {
+                sh """
+                    nix build .#bin -L
+                """
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                script {
+                    if (env.JOB_BASE_NAME.contains('develop')) {
+                        IMAGE_TYPE = 'develop'
+                    } else if (env.JOB_BASE_NAME.contains('release')) {
+                        IMAGE_TYPE = 'release'
+                    } else {
+                        IMAGE_TYPE = 'custom'
+                    }
+                    VERSION = readJSON(file: "./package.json").version
+                    IMAGE_TAG = "${IMAGE_TYPE}-${BUILD_NUMBER}_${VERSION}"
+
+                    withAWS(credentials: 'GENERIC_ECR', region: 'us-east-1') {
+                        DOCKER_LOGIN = sh (
+                            script:
+                            """
+                                set +x
+                                nix run nixpkgs#awscli -- ecr get-login-password
+                                set -x
+                            """,
+                                returnStdout: true
+                        ).trim()
+                    }
+                }
+                sh """
+                  nix build .#docker -L
+                  docker load < result
+                  docker image tag ${IMAGE_BASE}:latest ${IMAGE_BASE}:${IMAGE_TAG}
+                  echo "${BUILD_NUMBER}" > build-info.txt
+                  docker create --name temp-container ${IMAGE_BASE}:latest
+                  docker cp build-info.txt temp-container:/build-info.txt
+                  docker commit temp-container ${IMAGE_BASE}:${IMAGE_TAG}
+                  docker rm temp-container
+                  rm build-info.txt
+                  set +x; docker login -u "AWS" -p ${DOCKER_LOGIN} ${ORG_NAME};set -x
+                  docker push ${IMAGE_BASE}:${IMAGE_TAG}
+                """
+            }
+        }
+
+        // stage('Run dependency check test') {
+        //     agent {
+        //         docker {
+        //             image '222068622593.dkr.ecr.us-east-1.amazonaws.com/jenkins-node-images:scan0.1'
+        //             reuseNode true
+        //             registryUrl 'https://222068622593.dkr.ecr.us-east-1.amazonaws.com'
+        //             registryCredentialsId 'ecr:us-east-1:GENERIC_ECR'
+        //             args '-u root:root --network host -v /var/run/docker.sock:/var/run/docker.sock'
+        //         }
+        //     }
+        //     when {
+        //         expression { env.JOB_BASE_NAME.contains('release') }
+        //     }
+        //     steps {
+        //         sh """
+        //         dependency-check.sh --project ${env.SERVICE_NAME} \
+        //         --scan ${env.TARGET_LOCATION} \
+        //         --format HTML --format XML --log dep-check-log.txt \
+        //         --disableBundleAudit --disableRubygems --disablePyPkg --disablePyDist \
+        //         --disableRetireJS --disableAssembly --disableCmake --disableComposer \
+        //         --disableNugetconf --disableNuspec --disableJar --disableYarnAudit
+        //         """
+        //         // Re-enable risk gate threshold
+        //         // dependencyCheckPublisher pattern: '', unstableNewCritical: 1, unstableNewHigh: 1, unstableNewLow: 1, unstableNewMedium: 1
+        //         publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '', reportFiles: '**/dependency-check-report.html', reportName: 'Dependency Report', reportTitles: ''])
+        //     }
+        // }
+
+        stage('Save tag name in file') {
+            agent {
+                docker {
+                    image '222068622593.dkr.ecr.us-east-1.amazonaws.com/jenkins-node-images:gen0.1'
+                    reuseNode true
+                    registryUrl 'https://222068622593.dkr.ecr.us-east-1.amazonaws.com'
+                    registryCredentialsId 'ecr:us-east-1:GENERIC_ECR'
+                    args '-u root:root --network host -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                sh "echo ${SERVICE_NAME}='\"'${IMAGE_TAG}'\"' > ${SERVICE_NAME}.groovy"
+                archiveArtifacts "${env.SERVICE_NAME}.groovy"
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+            wrap([$class: 'BuildUser']) {
+                script {
+                    try {
+                        USER=BUILD_USER
+                    }catch (err) {
+                        USER="Jenkins User"
+                    }
+                    if (currentBuild.result == "ABORTED" || currentBuild.result == "FAILURE" || currentBuild.result == "UNSTABLE") {
+                        slackSend channel: "${env.SLACK_CHANNEL}", message: "${JOB_BASE_NAME} is ${currentBuild.result}. \n Started by: ${USER},\n Build URL: ${BUILD_URL}\n Build Time: ${BUILD_TIMESTAMP}\n Jenkins Node: ${NODE_NAME}", teamDomain: "${env.SLACK_DOMAIN}", tokenCredentialId: "${env.SLACK_TOKEN}"
+                    }
+                }
+            }
+        }
+        success {
+            script {
+                if (env.JOB_BASE_NAME.contains('custom')) {
+                    if (params.DEPLOY_ENV != "") {
+                        DEPLOY_SERVICE = env.SERVICE_NAME.toUpperCase().replaceAll("-","_")
+                        try {
+                            build job: "deploy/dev/namespaces/${params.DEPLOY_ENV}",
+                                parameters: [
+                                    [
+                                        $class: 'StringParameterValue',
+                                        name: env.SERVICE_NAME.toUpperCase().replaceAll("-","_")+"_VERSION",
+                                        value: "${IMAGE_TAG}"
+                                    ]
+                                ]
+                        } catch (err) {
+                            echo "Deployment has failed. you will be notified from the deploy job itself."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
