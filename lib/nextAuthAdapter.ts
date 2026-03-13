@@ -1,5 +1,5 @@
 import { Storable } from '@boxyhq/saml-jackson';
-import DB from '@Boxyhq/saml-jackson/src/db/db';
+import DB from '@boxyhq/saml-jackson/src/db/db';
 import { jacksonOptions } from './env';
 import type { AdapterUser, VerificationToken } from 'next-auth/adapters';
 import defaultDb from '@boxyhq/saml-jackson/src/db/defaultDb';
