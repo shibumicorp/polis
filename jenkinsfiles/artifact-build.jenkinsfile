@@ -61,7 +61,93 @@ pipeline {
             }
         }
 
-        stage('Push Image') {
+        stage('Build Docker images') {
+            parallel {
+                stage('Build x64 Docker image') {
+                    steps {
+                        script {
+                            if (env.JOB_BASE_NAME.contains('develop')) {
+                                IMAGE_TYPE = 'develop'
+                            } else if (env.JOB_BASE_NAME.contains('release')) {
+                                IMAGE_TYPE = 'release'
+                            } else {
+                                IMAGE_TYPE = 'custom'
+                            }
+                            VERSION = readJSON(file: "./package.json").version
+                            IMAGE_TAG = "${IMAGE_TYPE}-${BUILD_NUMBER}_${VERSION}"
+
+                            withAWS(credentials: 'GENERIC_ECR', region: 'us-east-1') {
+                                DOCKER_LOGIN = sh (
+                                    script:
+                                    """
+                                        set +x
+                                        nix run nixpkgs#awscli -- ecr get-login-password
+                                        set -x
+                                    """,
+                                        returnStdout: true
+                                ).trim()
+                            }
+                        }
+                        sh """
+                          nix build .#docker -L
+                          docker load < result
+                          docker image tag ${IMAGE_BASE}:latest ${IMAGE_BASE}:${IMAGE_TAG}-x64
+                          echo "${BUILD_NUMBER}" > build-info.txt
+                          docker create --name temp-container ${IMAGE_BASE}:latest
+                          docker cp build-info.txt temp-container:/build-info.txt
+                          docker commit temp-container ${IMAGE_BASE}:${IMAGE_TAG}-x64
+                          docker rm temp-container
+                          rm build-info.txt
+                          set +x; docker login -u "AWS" -p ${DOCKER_LOGIN} ${ORG_NAME};set -x
+                          docker push ${IMAGE_BASE}:${IMAGE_TAG}-x64
+                        """
+                    }
+                }
+                stage('Build arm Docker image') {
+                    agent { label 'generic-nix-arm-worker-single-exec' }
+                    steps {
+                        script {
+                            if (env.JOB_BASE_NAME.contains('develop')) {
+                                IMAGE_TYPE = 'develop'
+                            } else if (env.JOB_BASE_NAME.contains('release')) {
+                                IMAGE_TYPE = 'release'
+                            } else {
+                                IMAGE_TYPE = 'custom'
+                            }
+                            VERSION = readJSON(file: "./package.json").version
+                            IMAGE_TAG = "${IMAGE_TYPE}-${BUILD_NUMBER}_${VERSION}"
+
+                            withAWS(credentials: 'GENERIC_ECR', region: 'us-east-1') {
+                                DOCKER_LOGIN = sh (
+                                    script:
+                                    """
+                                        set +x
+                                        nix run nixpkgs#awscli -- ecr get-login-password
+                                        set -x
+                                    """,
+                                        returnStdout: true
+                                ).trim()
+                            }
+                        }
+                        sh """
+                          nix build .#docker -L
+                          docker load < result
+                          docker image tag ${IMAGE_BASE}:latest ${IMAGE_BASE}:${IMAGE_TAG}-arm
+                          echo "${BUILD_NUMBER}" > build-info.txt
+                          docker create --name temp-container ${IMAGE_BASE}:latest
+                          docker cp build-info.txt temp-container:/build-info.txt
+                          docker commit temp-container ${IMAGE_BASE}:${IMAGE_TAG}-arm
+                          docker rm temp-container
+                          rm build-info.txt
+                          set +x; docker login -u "AWS" -p ${DOCKER_LOGIN} ${ORG_NAME};set -x
+                          docker push ${IMAGE_BASE}:${IMAGE_TAG}-arm
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build combined Docker image') {
             steps {
                 script {
                     if (env.JOB_BASE_NAME.contains('develop')) {
@@ -87,17 +173,12 @@ pipeline {
                     }
                 }
                 sh """
-                  nix build .#docker -L
-                  docker load < result
-                  docker image tag ${IMAGE_BASE}:latest ${IMAGE_BASE}:${IMAGE_TAG}
-                  echo "${BUILD_NUMBER}" > build-info.txt
-                  docker create --name temp-container ${IMAGE_BASE}:latest
-                  docker cp build-info.txt temp-container:/build-info.txt
-                  docker commit temp-container ${IMAGE_BASE}:${IMAGE_TAG}
-                  docker rm temp-container
-                  rm build-info.txt
+                  docker manifest create \
+                    ${IMAGE_BASE}:${IMAGE_TAG} \
+                    --amend ${IMAGE_BASE}:${IMAGE_TAG}-x64 \
+                    --amend ${IMAGE_BASE}:${IMAGE_TAG}-arm
                   set +x; docker login -u "AWS" -p ${DOCKER_LOGIN} ${ORG_NAME};set -x
-                  docker push ${IMAGE_BASE}:${IMAGE_TAG}
+                  docker manifest push ${IMAGE_BASE}:${IMAGE_TAG}
                 """
             }
         }
