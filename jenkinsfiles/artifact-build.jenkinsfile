@@ -37,7 +37,7 @@ pipeline {
                     if (params.BRANCH) {
                         BRANCH_TO_BUILD = BRANCH
                     } else {
-                        BRANCH_TO_BUILD = "develop"
+                        BRANCH_TO_BUILD = "main"
                     }
                 }
 
