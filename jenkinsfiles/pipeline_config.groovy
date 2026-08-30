@@ -1,0 +1,3 @@
+libraries {
+    artifact_build
+}
