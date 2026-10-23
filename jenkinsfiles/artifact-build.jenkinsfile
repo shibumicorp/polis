@@ -81,7 +81,7 @@ pipeline {
                                     script:
                                     """
                                         set +x
-                                        nix run nixpkgs#awscli -- ecr get-login-password
+                                        nix run --inputs-from . nixpkgs#awscli -- ecr get-login-password
                                         set -x
                                     """,
                                         returnStdout: true
@@ -122,7 +122,7 @@ pipeline {
                                     script:
                                     """
                                         set +x
-                                        nix run nixpkgs#awscli -- ecr get-login-password
+                                        nix run --inputs-from . nixpkgs#awscli -- ecr get-login-password
                                         set -x
                                     """,
                                         returnStdout: true
@@ -165,7 +165,7 @@ pipeline {
                             script:
                             """
                                 set +x
-                                nix run nixpkgs#awscli -- ecr get-login-password
+                                nix run --inputs-from . nixpkgs#awscli -- ecr get-login-password
                                 set -x
                             """,
                                 returnStdout: true
