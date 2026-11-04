@@ -6,7 +6,7 @@
 }:
 buildNpmPackage (final: {
     pname = "polis";
-    version = "1.52.2";
+    version = "3.0.0";
 
     src = lib.fileset.toSource {
       root = ./.;
