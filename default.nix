@@ -20,7 +20,7 @@ buildNpmPackage (final: {
         ]);
     };
 
-    npmDepsHash = "sha256-fQV7VnMVsA1O8DVB2gMrPFLi096qCNnw5YCWvQXcvzs=";
+    npmDepsHash = "sha256-IsPOc6bmMJfBxXaubfh9g8PVvSrQPn9JwfVi09dFby0=";
 
     nativeBuildInputs = [ makeWrapper ];
 

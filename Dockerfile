@@ -1,8 +1,10 @@
-ARG NODEJS_IMAGE=node:24.14.0-alpine3.23
+ARG NODEJS_IMAGE=node:24.18.0-alpine3.24
 FROM $NODEJS_IMAGE AS base
 
 # Install dependencies only when needed
 FROM base AS deps
+# Populated automatically by BuildKit per target platform (e.g. amd64, arm64).
+ARG TARGETARCH=amd64
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 # Install dependencies including Python
@@ -17,7 +19,14 @@ COPY npm npm
 COPY internal-ui internal-ui
 COPY migrate.sh ./
 RUN npm i
-RUN npm rebuild --arch=x64 --platform=linux --libc=musl sharp
+# Rebuild sharp's prebuilt native binary for the target architecture. sharp uses
+# x64/arm64 names, while TARGETARCH is amd64/arm64, so map amd64 to x64.
+RUN case "$TARGETARCH" in \
+        amd64) SHARP_ARCH=x64 ;; \
+        arm64) SHARP_ARCH=arm64 ;; \
+        *) SHARP_ARCH="$TARGETARCH" ;; \
+    esac && \
+    npm rebuild --arch="$SHARP_ARCH" --platform=linux --libc=musl sharp
 
 
 # Rebuild the source code only when needed
@@ -66,8 +75,21 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/migrate.sh ./migrate.sh
 COPY npm npm
 RUN chmod +x migrate.sh
-# mongodb peer dependency would be automatically installed for migrate-mongo
-RUN npm install -g ts-node migrate-mongo typeorm reflect-metadata mssql mysql2 pg
+# Pin npm to a patched version so the bundled npm CLI no longer ships
+# vulnerable transitive deps (e.g. sigstore, CVE-2026-48815).
+RUN npm install -g npm@11.18.0
+# Install migration tools from a checked-in package.json + lockfile so npm
+# overrides apply to transitive dependencies (e.g., uuid in typeorm/mssql)
+# and the install is reproducible. migrate.sh resolves them via
+# MIGRATE_DEPS_DIR/NODE_PATH.
+COPY migrate-deps /opt/migrate-deps
+RUN cd /opt/migrate-deps && \
+    npm ci --ignore-scripts && \
+    ln -sf /opt/migrate-deps/node_modules/.bin/ts-node /usr/local/bin/ts-node && \
+    ln -sf /opt/migrate-deps/node_modules/.bin/migrate-mongo /usr/local/bin/migrate-mongo && \
+    ln -sf /opt/migrate-deps/node_modules/.bin/typeorm /usr/local/bin/typeorm
+ENV MIGRATE_DEPS_DIR=/opt/migrate-deps/node_modules
+ENV NODE_PATH=/opt/migrate-deps/node_modules
 USER nextjs
 
 EXPOSE 5225

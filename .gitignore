@@ -57,6 +57,7 @@ _dev/docker/libsql/iku.db
 /playwright/.cache/
 .idea
 _dev/cockroach-data
+next-env.d.ts
 
 /.direnv
 /result

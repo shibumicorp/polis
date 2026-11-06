@@ -10,14 +10,14 @@ jackson:
   jackson:
     image:
       repository: boxyhq/jackson
-      tag: 1.52.2
+      tag: 26.2.0
     imagePullPolicy: IfNotPresent
     resources:
       limits:
         cpu: 500m
       requests:
         cpu: 100m
-  jacksonApiKeys: secret
+  apiKeys: secret
   nextauthSecret: secret
   nextauthUrl: http://localhost:5225
   ports:
@@ -31,6 +31,6 @@ migratePg:
   db:
     image:
       repository: boxyhq/jackson
-      tag: 1.52.2
+      tag: 26.2.0
     imagePullPolicy: IfNotPresent
 
