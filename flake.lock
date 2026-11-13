@@ -58,6 +58,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-node": {
+      "locked": {
+        "lastModified": 1794552581,
+        "narHash": "sha256-qXFIqA6FCcx7XeDzw0ZNlkDT9UiCzrNDwK8RuU8RcHM=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-26.05-small",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "process-compose-flake": {
       "locked": {
         "lastModified": 1767863885,
@@ -83,7 +99,8 @@
         "nixpkgs": [
           "build-support",
           "nixpkgs"
-        ]
+        ],
+        "nixpkgs-node": "nixpkgs-node"
       }
     },
     "services-flake": {

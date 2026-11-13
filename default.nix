@@ -20,6 +20,9 @@ buildNpmPackage (final: {
         ]);
     };
 
+    # Use the same node for npm ci / next build as at runtime.
+    inherit nodejs;
+
     npmDepsHash = "sha256-KoVc/PbJJYcpZoxx6Jk4HcLFQ2HFIGznyfXxyoBeE5M=";
 
     nativeBuildInputs = [ makeWrapper ];
