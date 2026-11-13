@@ -15,7 +15,7 @@ const googleDSyncCallbackPath = '/api/scim/oauth/callback';
 const hostUrl = process.env.HOST_URL || 'localhost';
 const hostPort = Number(process.env.PORT || '5225');
 const externalUrl = process.env.EXTERNAL_URL || 'http://' + hostUrl + ':' + hostPort;
-const apiKeys = (process.env.JACKSON_API_KEYS || '').split(',');
+const apiKeys = (process.env.API_KEYS || process.env.JACKSON_API_KEYS || '').split(',');
 const acsUrl = process.env.ACS_URL || externalUrl + samlPath;
 
 let ssl;
@@ -52,7 +52,7 @@ const ssoTraces: SSOTracesOption = {
 };
 
 /** Indicates if the Jackson instance is hosted (i.e. not self-hosted) */
-export const boxyhqHosted = process.env.BOXYHQ_HOSTED === '1';
+export const polisHosted = process.env.POLIS_HOSTED === '1' || process.env.BOXYHQ_HOSTED === '1';
 
 const jacksonOptions: JacksonOption = {
   externalUrl,
@@ -77,10 +77,12 @@ const jacksonOptions: JacksonOption = {
     redirectExactMatch: process.env.OPENID_REDIRECT_EXACT_MATCH === 'true',
   },
   certs: { publicKey: process.env.PUBLIC_KEY || '', privateKey: process.env.PRIVATE_KEY || '' },
-  boxyhqLicenseKey: process.env.BOXYHQ_LICENSE_KEY,
+  polisLicenseKey: process.env.POLIS_LICENSE_KEY || process.env.BOXYHQ_LICENSE_KEY,
   noAnalytics:
     process.env.DO_NOT_TRACK === '1' ||
     process.env.DO_NOT_TRACK === 'true' ||
+    process.env.POLIS_NO_ANALYTICS === '1' ||
+    process.env.POLIS_NO_ANALYTICS === 'true' ||
     process.env.BOXYHQ_NO_ANALYTICS === '1' ||
     process.env.BOXYHQ_NO_ANALYTICS === 'true',
   webhook: { endpoint: process.env.WEBHOOK_URL || '', secret: process.env.WEBHOOK_SECRET || '' },
@@ -92,6 +94,10 @@ const jacksonOptions: JacksonOption = {
       ? Number(process.env.DSYNC_WEBHOOK_BATCH_CRON_INTERVAL)
       : undefined,
     debugWebhooks: process.env.DSYNC_DEBUG_WEBHOOKS === 'true',
+    maxInlineGroupMembers: process.env.DSYNC_MAX_INLINE_GROUP_MEMBERS
+      ? Number(process.env.DSYNC_MAX_INLINE_GROUP_MEMBERS)
+      : undefined,
+    webhookLogsTTL: process.env.DSYNC_WEBHOOK_LOGS_TTL,
     providers: {
       google: {
         clientId: process.env.DSYNC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
@@ -105,10 +111,11 @@ const jacksonOptions: JacksonOption = {
     },
   },
   setupLinkExpiryDays,
-  boxyhqHosted,
+  polisHosted,
   ssoTraces,
   flattenRawClaims: process.env.FLATTEN_RAW_CLAIMS === 'true',
   jsonErrorPage: process.env.JSON_ERROR_PAGE === 'true',
+  authnRequestsSigned: true,
 };
 
 const adminPortalSSODefaults = {
