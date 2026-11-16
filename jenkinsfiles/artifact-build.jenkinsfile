@@ -58,6 +58,10 @@ pipeline {
                 sh """
                     nix build .#bin -L
                 """
+                script {
+                    // Version is tracked in default.nix, not package.json
+                    VERSION = sh(script: 'nix eval --raw .#bin.version', returnStdout: true).trim()
+                }
             }
         }
 
@@ -73,7 +77,6 @@ pipeline {
                             } else {
                                 IMAGE_TYPE = 'custom'
                             }
-                            VERSION = readJSON(file: "./package.json").version
                             IMAGE_TAG = "${IMAGE_TYPE}-${BUILD_NUMBER}_${VERSION}"
 
                             withAWS(credentials: 'GENERIC_ECR', region: 'us-east-1') {
@@ -114,7 +117,6 @@ pipeline {
                             } else {
                                 IMAGE_TYPE = 'custom'
                             }
-                            VERSION = readJSON(file: "./package.json").version
                             IMAGE_TAG = "${IMAGE_TYPE}-${BUILD_NUMBER}_${VERSION}"
 
                             withAWS(credentials: 'GENERIC_ECR', region: 'us-east-1') {
@@ -157,7 +159,6 @@ pipeline {
                     } else {
                         IMAGE_TYPE = 'custom'
                     }
-                    VERSION = readJSON(file: "./package.json").version
                     IMAGE_TAG = "${IMAGE_TYPE}-${BUILD_NUMBER}_${VERSION}"
 
                     withAWS(credentials: 'GENERIC_ECR', region: 'us-east-1') {
