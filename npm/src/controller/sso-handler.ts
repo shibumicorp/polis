@@ -17,7 +17,7 @@ import { getDefaultCertificate } from '../saml/x509';
 import * as dbutils from '../db/utils';
 import { JacksonError } from './error';
 import { dynamicImport, GENERIC_ERR_STRING, IndexNames } from './utils';
-import { relayStatePrefix } from './utils';
+import { relayStatePrefix, sigAlg, signQueryString } from './utils';
 import * as redirect from './oauth/redirect';
 import * as allowed from './oauth/allowed';
 import { oidcClientConfig } from './oauth/oidc-client';
@@ -79,11 +79,20 @@ export class SSOHandler {
     let connections: (SAMLSSORecord | OIDCSSORecord)[] | null = null;
     const noSSOConnectionErrMessage = 'No SSO connection found.';
 
-    // If an IdP is specified, find the connection for that IdP
+    // If an IdP is specified, find the connection for that IdP.
     if (idp_hint) {
       const connection = await this.connection.get(idp_hint);
 
       if (!connection) {
+        throw new JacksonError(GENERIC_ERR_STRING, 403, noSSOConnectionErrMessage);
+      }
+
+      // The hinted connection is selected by id, which is attacker-controllable
+      // on public SSO entry points. It must belong to the same tenant/product
+      // scope as the requesting flow, otherwise a caller could route a login to
+      // a connection in another tenant (CWE-639). Reject any hint that the
+      // non-hint lookups below would not have returned.
+      if (!this.isConnectionInScope(connection, { tenant, product, tenants, entityId })) {
         throw new JacksonError(GENERIC_ERR_STRING, 403, noSSOConnectionErrMessage);
       }
 
@@ -196,6 +205,40 @@ export class SSOHandler {
     return { connection: connections[0] };
   }
 
+  // Reports whether a connection selected by `idp_hint` is in scope for the
+  // requesting flow. The scope mirrors the non-hint lookups in
+  // `resolveConnection`, so a hint can never select a connection that the
+  // tenant/product (or entityID) lookup would not have returned. Fails closed
+  // when no scope is available.
+  private isConnectionInScope(
+    connection: SAMLSSORecord | OIDCSSORecord,
+    scope: { tenant?: string; product?: string; tenants?: string[]; entityId?: string }
+  ): boolean {
+    const { tenant, product, tenants, entityId } = scope;
+
+    // Multi-tenant federation app: the connection must belong to one of the
+    // app's tenants and share the app's product.
+    if (tenants && tenants.length > 0 && product) {
+      return tenants.includes(connection.tenant) && connection.product === product;
+    }
+
+    // Single tenant/product flow (OAuth SSO, single-tenant federation).
+    if (tenant && product) {
+      return connection.tenant === tenant && connection.product === product;
+    }
+
+    // IdP-initiated flow keyed by the IdP entityID. Only SAML connections carry
+    // an IdP entityID, and entityIDs are unique per tenant, so this binds the
+    // hint to the issuing IdP.
+    if (entityId) {
+      return 'idpMetadata' in connection && connection.idpMetadata?.entityID === entityId;
+    }
+
+    // No scope to validate against: reject rather than return an arbitrary
+    // connection.
+    return false;
+  }
+
   async createSAMLRequest({
     connection,
     requestParams,
@@ -221,17 +264,25 @@ export class SSOHandler {
         post = true;
       }
 
-      const samlRequest = saml.request({
+      const samlRequestOpts = {
         ssoUrl,
         entityID: connection.samlAudienceOverride ? connection.samlAudienceOverride : this.opts.samlAudience!,
         callbackUrl: connection.acsUrlOverride ? connection.acsUrlOverride : (this.opts.acsUrl as string),
-        signingKey: certificate.privateKey,
-        publicKey: certificate.publicKey,
         forceAuthn: !!connection.forceAuthn,
         identifierFormat: connection.identifierFormat
           ? connection.identifierFormat
           : 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
-      });
+      };
+
+      // For HTTP-POST, embed signature in the XML body
+      // For HTTP-Redirect, leave XML unsigned (query string is signed instead)
+      const samlRequest = post
+        ? saml.request({
+            ...samlRequestOpts,
+            signingKey: certificate.privateKey,
+            publicKey: certificate.publicKey,
+          })
+        : saml.request({ ...samlRequestOpts, signingKey: '', publicKey: '' });
 
       const relayState = await this.createSession({
         requestId: samlRequest.id,
@@ -242,13 +293,20 @@ export class SSOHandler {
       let redirectUrl;
       let authorizeForm;
 
-      // Decide whether to use HTTP Redirect or HTTP POST binding
       if (!post) {
+        // HTTP-Redirect: sign the query string, not the XML body
+        const encodedRequest = Buffer.from(await deflateRawAsync(samlRequest.request)).toString('base64');
+        const queryToSign = `SAMLRequest=${encodeURIComponent(encodedRequest)}&RelayState=${encodeURIComponent(relayState)}&SigAlg=${encodeURIComponent(sigAlg)}`;
+        const signature = signQueryString(queryToSign, certificate.privateKey);
+
         redirectUrl = redirect.success(ssoUrl, {
+          SAMLRequest: encodedRequest,
           RelayState: relayState,
-          SAMLRequest: Buffer.from(await deflateRawAsync(samlRequest.request)).toString('base64'),
+          SigAlg: sigAlg,
+          Signature: signature,
         });
       } else {
+        // HTTP-POST: signature is already embedded in the XML
         authorizeForm = saml.createPostForm(ssoUrl, [
           { name: 'RelayState', value: relayState },
           { name: 'SAMLRequest', value: Buffer.from(samlRequest.request).toString('base64') },

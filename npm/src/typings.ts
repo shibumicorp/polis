@@ -108,10 +108,7 @@ type TenantQuery = { tenant: string; product: string; strategy?: ConnectionType 
 type TenantProduct = { tenant: string; product: string };
 
 export type GetConnectionsQuery =
-  | ClientIDQuery
-  | TenantQuery
-  | { entityId: string }
-  | { tenant: string[]; product: string; sort?: boolean };
+  ClientIDQuery | TenantQuery | { entityId: string } | { tenant: string[]; product: string; sort?: boolean };
 
 export type GetIDPEntityIDBody = TenantProduct;
 export type DelConnectionsQuery = (ClientIDQuery & { clientSecret: string }) | TenantQuery;
@@ -446,13 +443,22 @@ export interface JacksonOption {
     redirectExactMatch?: boolean; // defaults to false
   };
   certs?: { publicKey: string; privateKey: string };
-  boxyhqLicenseKey?: string;
+  polisLicenseKey?: string;
   noAnalytics?: boolean;
   webhook?: Webhook;
   dsync?: {
     webhookBatchSize?: number;
     webhookBatchCronInterval?: number;
     debugWebhooks?: boolean;
+    /**
+     * Maximum number of group members returned inline in a SCIM Group response
+     * when `includeMembers=true` is requested. Groups larger than this return
+     * an error instead. Defaults to 500.
+     */
+    maxInlineGroupMembers?: number;
+    // Retention for SCIM webhook event logs as a duration string (e.g. "720h",
+    // "30d"). Unset keeps the 7-day default; an empty string means indefinite.
+    webhookLogsTTL?: string;
     providers?: {
       google: {
         clientId: string;
@@ -467,7 +473,7 @@ export interface JacksonOption {
 
   /**  The number of days a setup link is valid for. Defaults to 3 days. */
   setupLinkExpiryDays?: number;
-  boxyhqHosted?: boolean;
+  polisHosted?: boolean;
 
   ssoTraces?: SSOTracesOption;
   logger?: {
@@ -477,6 +483,7 @@ export interface JacksonOption {
   };
   flattenRawClaims?: boolean;
   jsonErrorPage?: boolean;
+  authnRequestsSigned?: boolean;
 }
 
 export interface SLORequestParams {
