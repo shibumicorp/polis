@@ -18,7 +18,7 @@
 
       perSystem = {pkgs, system, ...}:
         let
-          nodejs = nixpkgs-node.legacyPackages.${system}.nodejs_26;
+          nodejs = nixpkgs-node.legacyPackages.${system}.nodejs_24;
           polis = pkgs.callPackage ./default.nix { inherit nodejs; };
         in {
           packages = {
