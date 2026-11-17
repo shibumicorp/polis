@@ -12,6 +12,17 @@ import { Login as SSOLogin } from '@boxyhq/react-ui/sso';
 import { adminPortalSSODefaults } from '@lib/env';
 import { getPortalBranding } from '@ee/branding/utils';
 
+const isValidRedirectPath = (path) => {
+  try {
+    // Parse relative paths correctly by providing the current origin as the base
+    const url = new URL(path, window.location.origin);
+    // Ensure the origin matches AND the scheme is either http: or https:
+    return url.origin === window.location.origin && (url.protocol === 'http:' || url.protocol === 'https:');
+  } catch {
+    return false;
+  }
+};
+
 const Login = ({
   csrfToken,
   tenant,
@@ -38,7 +49,7 @@ const Login = ({
   }
 
   if (status === 'authenticated') {
-    router.push(callbackUrl);
+    router.push(isValidRedirectPath(callbackUrl) ? callbackUrl : '/');
     return;
   }
 
@@ -159,7 +170,7 @@ const Login = ({
                           />
                         </label>
                         <ButtonOutline
-                          loading={loading && authMethod === 'credentials'}
+                          loading={loading && authMethod === 'credentials' ? 'true' : 'false'}
                           className='btn-block'
                           type='submit'>
                           {t('sign_in')}
@@ -180,7 +191,7 @@ const Login = ({
                   components={{
                     docLink: (
                       <a
-                        href='https://www.ory.sh/docs/polis/admin-portal'
+                        href='https://www.ory.com/docs/polis/admin-portal'
                         target='_blank'
                         rel='noopener noreferrer'
                         className='underline underline-offset-2'>
@@ -195,7 +206,7 @@ const Login = ({
             <div className='mt-10 flex flex-col gap-3'>
               {isMagicLinkEnabled && (
                 <ButtonOutline
-                  loading={loading && authMethod === 'email'}
+                  loading={loading && authMethod === 'email' ? 'true' : 'false'}
                   className='btn-block'
                   onClick={onMagicLinkLogin}
                   type='button'>
