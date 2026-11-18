@@ -37,7 +37,7 @@ export enum DirectorySyncProviders {
   'okta-scim-v2' = 'Okta SCIM v2.0',
   'jumpcloud-scim-v2' = 'JumpCloud v2.0',
   'generic-scim-v2' = 'Generic SCIM v2.0',
-  'google' = 'Google',
+  google = 'Google',
 }
 
 export type DirectoryType = keyof typeof DirectorySyncProviders;
@@ -86,6 +86,9 @@ export interface DirectorySyncRequest {
     count?: number;
     startIndex?: number;
     filter?: string;
+    // When true, group reads include the group's members. Off by default to
+    // avoid loading very large memberships inline.
+    includeMembers?: boolean;
   };
 }
 
@@ -139,9 +142,9 @@ export type PaginationParams = {
 };
 
 export type UserPatchOperation = {
-  op: 'replace' | 'add';
+  op: 'replace' | 'add' | 'remove';
   path?: string;
-  value:
+  value?:
     | boolean
     | {
         active: boolean;

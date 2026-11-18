@@ -11,7 +11,6 @@ import type {
   IConnectionAPIController,
   IOAuthController,
   IdentityFederationApp,
-  OIDCSSORecord,
   JacksonOption,
   Profile,
 } from '../../src';
@@ -40,7 +39,7 @@ const jacksonOptions: JacksonOption = {
     jwtSigningKeys: { private: 'PRIVATE_KEY', public: 'PUBLIC_KEY' },
     jwsAlg: 'RS256',
   },
-  boxyhqLicenseKey: 'dummy-license',
+  polisLicenseKey: 'dummy-license',
   noAnalytics: true,
 };
 
@@ -170,7 +169,6 @@ tap.teardown(async () => {
  */
 tap.test('SAML-OIDC Federation Flow with OIDC Tokens in SAML Response', async (t) => {
   let app: IdentityFederationApp;
-  let oidcConnection: OIDCSSORecord;
 
   t.before(async () => {
     // Create Identity Federation app with includeOidcTokensInAssertion enabled
@@ -184,7 +182,7 @@ tap.test('SAML-OIDC Federation Flow with OIDC Tokens in SAML Response', async (t
     });
 
     // Create OIDC connection
-    oidcConnection = await connectionAPIController.createOIDCConnection(oidcConnectionConfig);
+    await connectionAPIController.createOIDCConnection(oidcConnectionConfig);
   });
 
   t.teardown(async () => {
@@ -343,7 +341,6 @@ tap.test('SAML-OIDC Federation Flow with OIDC Tokens in SAML Response', async (t
 
 tap.test('SAML Response should NOT contain OIDC tokens when not configured', async (t) => {
   let appWithoutTokens: IdentityFederationApp;
-  let oidcConnection: OIDCSSORecord;
 
   const testConfigNoTokens = {
     tenant: 'no-tokens-tenant',
@@ -365,7 +362,7 @@ tap.test('SAML Response should NOT contain OIDC tokens when not configured', asy
     });
 
     // Create OIDC connection
-    oidcConnection = await connectionAPIController.createOIDCConnection({
+    await connectionAPIController.createOIDCConnection({
       ...oidcConnectionConfig,
       tenant: testConfigNoTokens.tenant,
       product: testConfigNoTokens.product,
