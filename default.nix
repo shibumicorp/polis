@@ -6,7 +6,7 @@
 }:
 buildNpmPackage (final: {
     pname = "polis";
-    version = "1.52.2";
+    version = "3.0.0";
 
     src = lib.fileset.toSource {
       root = ./.;
@@ -20,7 +20,10 @@ buildNpmPackage (final: {
         ]);
     };
 
-    npmDepsHash = "sha256-fQV7VnMVsA1O8DVB2gMrPFLi096qCNnw5YCWvQXcvzs=";
+    # Use the same node for npm ci / next build as at runtime.
+    inherit nodejs;
+
+    npmDepsHash = "sha256-KoVc/PbJJYcpZoxx6Jk4HcLFQ2HFIGznyfXxyoBeE5M=";
 
     nativeBuildInputs = [ makeWrapper ];
 
